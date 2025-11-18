@@ -25,8 +25,8 @@ A comprehensive web application for monitoring Meshtastic mesh networks over IP.
 
 ### Tooling
 - Automated upstream sync: `.github/workflows/sync-fork.yml`
-- README customization script: `codename/apply-custom-readme.sh`
-- PR scaffolding: `codename/PR_GUIDE.md`
+- README customization script: `.claude/codename/apply-custom-readme.sh`
+- PR scaffolding: `.claude/codename/PR_GUIDE.md`
 
 <!-- END CODENAME-11 CUSTOM -->
 
