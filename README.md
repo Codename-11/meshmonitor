@@ -12,6 +12,24 @@ A comprehensive web application for monitoring Meshtastic mesh networks over IP.
 
 ![MeshMonitor Interface](docs/images/channels.png)
 
+<!-- CODENAME-11 CUSTOM -->
+## Codename-11 Enhancements (Local Fork Only)
+
+> These additions exist only in Codename-11's fork. They are re-applied automatically after every upstream sync.
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Mirrors `Yeraze/main` via GitHub Actions |
+| `dev`  | Personal integration branch for staging features |
+| `feat/*` | Individual feature branches used for PRs |
+
+### Tooling
+- Automated upstream sync: `.github/workflows/sync-fork.yml`
+- README customization script: `codename/apply-custom-readme.sh`
+- PR scaffolding: `codename/PR_GUIDE.md`
+
+<!-- END CODENAME-11 CUSTOM -->
+
 ## Documentation
 
 For complete documentation, visit **[meshmonitor.org](https://meshmonitor.org/)**

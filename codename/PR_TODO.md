@@ -1,0 +1,4 @@
+- Enhance Auto Resonder UI configured triggers section to merge highligted titles within [] when no space is between literal and parameter. Current behavior is to show both literal and parameter separately even when there is no space between them.
+- Allow clearing the response text areas in all instances within Auto Responder section.
+- Remove the Response Preview section from the Add Trigger test section as it doesn't provide any value anymore since the response preview is shown inline.
+- Enhance Test Pattern Matching section to allow testing and response preview within the Quick Test real time section. Testing is triggered by pressing Enter or clicking the Test button. Enhance the response preview.

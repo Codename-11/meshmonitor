@@ -1,0 +1,43 @@
+name: Sync Fork and Reapply Custom README
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/Yeraze/meshmonitor.git
+          git fetch upstream
+
+      - name: Rebase origin/main onto upstream/main
+        run: |
+          git checkout main
+          git rebase upstream/main
+
+      - name: Reapply Codename-11 README block
+        run: bash codename/apply-custom-readme.sh
+
+      - name: Push changes back to fork
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: git push origin main --force-with-lease
+
