@@ -30,10 +30,21 @@ The OAuth token is generated when you install/connect the Claude Code GitHub app
 3. Find "Claude Code" app
 4. Click "Configure" → Look for OAuth token or "Generate token" option
 
-**Note:** If you've already installed the Claude Code app but don't see the token, you may need to:
-- Re-authorize the app
-- Check if the token is shown in the app's configuration page
-- The token might be auto-generated and stored - check GitHub's secret management
+**Method 4: Check Anthropic Documentation**
+1. Visit the action's repository: https://github.com/anthropics/claude-code-action
+2. Check the README for OAuth token setup instructions
+3. Look for "Getting Started" or "Setup" section
+
+**If you've already installed the Claude Code app:**
+- The OAuth token might be managed automatically by GitHub
+- Try running a workflow - if it fails with auth error, you'll need to generate the token
+- Check your fork's Settings → Secrets → Actions to see if any Claude-related secrets exist
+- You may need to visit https://claude.ai/code and look for a "GitHub" or "API" section to generate a token
+
+**Important:** The OAuth token is different from:
+- GitHub Personal Access Token (PAT)
+- Claude API key
+- It's specifically for the Claude Code GitHub app integration
 
 **Where to set it:**
 - GitHub → Your Fork → Settings → Secrets and variables → Actions
