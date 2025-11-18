@@ -29,26 +29,28 @@ git push -u origin dev
 
 ## 3. Create Feature Branches from `dev`
 
-**Best Practice: Create feature branch from upstream/main to avoid .claude/ entirely:**
+**Best Practice: Create feature branch from upstream/main:**
 ```bash
 git fetch upstream
 git checkout -b feat/my-feature upstream/main
+# Copy .claude/ from main for reference (optional, for PR_TODO.md access)
+git checkout main -- .claude/ 2>/dev/null || echo ".claude/ not needed"
 ```
 
-**Alternative: Create from dev (then remove .claude/):**
+**Alternative: Create from dev:**
 ```bash
 git checkout dev
 git checkout -b feat/my-feature
-# Remove .claude/ from feature branch (it's only needed in fork's main)
-git rm -r --cached .claude/
-git commit -m "chore: Remove .claude/ from feature branch"
+# .claude/ will be present but should NOT be committed
 ```
 
-1. Implement the feature, add tests, update docs.
-2. **⚠️ IMPORTANT: Never commit `.claude/` changes in feature branches!**
-   - `.claude/` is tracked in fork's `main` for workflow access only
-   - If you modify `.claude/` files, stash or discard those changes before committing
-   - Feature branches should only contain main codebase changes
+1. **Using PR_TODO.md during development:**
+   - `.claude/codename/PR_TODO.md` can be present in your working directory for reference
+   - You can update it during development to track progress
+   - **⚠️ CRITICAL: Never commit `.claude/` files in feature branches!**
+   - Before committing, ensure `.claude/` is not staged: `git status` should show it as untracked or modified but not staged
+
+2. Implement the feature, add tests, update docs.
 3. Run checks:
    ```bash
    npm run lint
@@ -61,18 +63,19 @@ git commit -m "chore: Remove .claude/ from feature branch"
 
 **Before pushing, verify your branch:**
 ```bash
-# Check what files are changed (should NOT include .claude/)
-git diff upstream/main --name-only
+# Check what files are staged/committed (should NOT include .claude/)
+git diff --cached --name-only  # Check staged files
+git diff upstream/main --name-only  # Check all changes
 
-# If .claude/ appears in the diff, remove it from the branch:
-# Option 1: Remove .claude/ from the branch entirely (recommended)
+# If .claude/ appears in staged files, unstage it:
+git restore --staged .claude/
+
+# If .claude/ was accidentally committed, remove it:
 git rm -r --cached .claude/
 git commit -m "chore: Remove .claude/ from feature branch"
 
-# Option 2: If .claude/ was already committed, reset it:
-git restore --source=upstream/main .claude/
-git add .claude/
-git commit -m "chore: Restore .claude/ to match upstream (exclude from PR)"
+# Verify .claude/ is NOT in the commit:
+git show HEAD --name-only
 ```
 
 ```bash
