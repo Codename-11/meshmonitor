@@ -29,9 +29,19 @@ git push -u origin dev
 
 ## 3. Create Feature Branches from `dev`
 
+**Best Practice: Create feature branch from upstream/main to avoid .claude/ entirely:**
+```bash
+git fetch upstream
+git checkout -b feat/my-feature upstream/main
+```
+
+**Alternative: Create from dev (then remove .claude/):**
 ```bash
 git checkout dev
 git checkout -b feat/my-feature
+# Remove .claude/ from feature branch (it's only needed in fork's main)
+git rm -r --cached .claude/
+git commit -m "chore: Remove .claude/ from feature branch"
 ```
 
 1. Implement the feature, add tests, update docs.
@@ -54,10 +64,15 @@ git checkout -b feat/my-feature
 # Check what files are changed (should NOT include .claude/)
 git diff upstream/main --name-only
 
-# If .claude/ appears, remove it:
-git restore .claude/
-# or
-git reset HEAD .claude/
+# If .claude/ appears in the diff, remove it from the branch:
+# Option 1: Remove .claude/ from the branch entirely (recommended)
+git rm -r --cached .claude/
+git commit -m "chore: Remove .claude/ from feature branch"
+
+# Option 2: If .claude/ was already committed, reset it:
+git restore --source=upstream/main .claude/
+git add .claude/
+git commit -m "chore: Restore .claude/ to match upstream (exclude from PR)"
 ```
 
 ```bash
