@@ -4,14 +4,36 @@
 
 ### 1. Claude Code OAuth Token (`CLAUDE_CODE_OAUTH_TOKEN`)
 
-**What it is:** Token for Claude Code GitHub app to review your code
+**What it is:** OAuth token for Claude Code GitHub app to review your code
 
 **Where to get it:**
+
+The OAuth token is generated when you install/connect the Claude Code GitHub app to your repository.
+
+**Method 1: Via Claude Code Website (if available)**
 1. Go to: https://claude.ai/code
 2. Sign in with your Claude subscription
-3. Navigate to Settings → GitHub Integration
-4. Generate OAuth token
+3. Look for "GitHub Integration" or "Settings" section
+4. If there's a "Generate OAuth Token" option, use that
 5. Copy the token
+
+**Method 2: Via GitHub App Installation (Recommended)**
+1. Go to: https://github.com/apps/claude-code (or search for "Claude Code" in GitHub Apps)
+2. Click "Install" or "Configure"
+3. Select your fork repository (Codename-11/meshmonitor)
+4. During installation, you may be prompted to authorize and generate an OAuth token
+5. Copy the token when shown
+
+**Method 3: Check GitHub App Settings**
+1. Go to your fork: https://github.com/Codename-11/meshmonitor
+2. Settings → Integrations → Installed GitHub Apps
+3. Find "Claude Code" app
+4. Click "Configure" → Look for OAuth token or "Generate token" option
+
+**Note:** If you've already installed the Claude Code app but don't see the token, you may need to:
+- Re-authorize the app
+- Check if the token is shown in the app's configuration page
+- The token might be auto-generated and stored - check GitHub's secret management
 
 **Where to set it:**
 - GitHub → Your Fork → Settings → Secrets and variables → Actions
