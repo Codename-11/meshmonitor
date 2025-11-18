@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout fork
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -34,7 +34,7 @@ jobs:
           git rebase upstream/main
 
       - name: Reapply Codename-11 README block
-        run: bash codename/apply-custom-readme.sh
+        run: bash .claude/codename/apply-custom-readme.sh
 
       - name: Push changes back to fork
         env:

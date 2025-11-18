@@ -56,3 +56,6 @@ test-results.md
 
 # Log directories
 meshmonitor-logs/
+
+# Personal Claude/Codename files (never push to upstream)
+.claude/
