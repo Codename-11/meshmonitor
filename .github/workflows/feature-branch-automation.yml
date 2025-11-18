@@ -1,0 +1,364 @@
+name: Feature Branch Auto-PR with Claude Review
+
+on:
+  push:
+    branches:
+      - 'feat/**'  # Trigger on feature branches
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Feature branch name'
+        required: false
+      action:
+        description: 'Action to perform'
+        required: false
+        type: choice
+        options:
+          - 'convert-to-ready'
+        default: 'convert-to-ready'
+      pr_number:
+        description: 'PR number to convert (for convert-to-ready action)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Validate no .claude/ files
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
+          BASE_BRANCH="main"
+          
+          echo "Checking for .claude/ files in PR diff..."
+          if git diff origin/$BASE_BRANCH --name-only | grep -q "^\.claude/"; then
+            echo "❌ ERROR: .claude/ files detected in branch!"
+            echo "Please remove .claude/ files before creating PR."
+            exit 1
+          fi
+          echo "✅ No .claude/ files detected"
+
+      - name: Check required files
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
+          BASE_BRANCH="main"
+          
+          FILES_CHANGED=$(git diff origin/$BASE_BRANCH --name-only --diff-filter=ACMR)
+          if [ -z "$FILES_CHANGED" ]; then
+            echo "⚠️ No files changed in this branch"
+            exit 1
+          fi
+          echo "✅ Files changed:"
+          echo "$FILES_CHANGED"
+
+  claude-review:
+    needs: validate-branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          direct_prompt: |
+            Review this feature branch for PR readiness:
+            
+            1. **Code Quality**: Check for best practices, code style, and maintainability
+            2. **File Validation**: Verify no .claude/ or personal files are included
+            3. **PR Requirements**: Check if PR description exists in .claude/codename/PR_DESCRIPTION.md
+            4. **Testing**: Review test coverage and suggest improvements if needed
+            5. **Documentation**: Verify code is well-documented
+            
+            Provide a summary:
+            - ✅ Ready for PR if all checks pass
+            - ⚠️ Needs work if issues found
+            - ❌ Not ready if critical issues
+            
+            If ready, suggest creating a PR to the fork's main branch for final review.
+
+  create-review-pr:
+    needs: [validate-branch, claude-review]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && secrets.UPSTREAM_PAT == ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get PR description
+        id: pr_desc
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
+          
+          # Try to get PR description from .claude/codename/PR_DESCRIPTION.md
+          if [ -f ".claude/codename/PR_DESCRIPTION.md" ]; then
+            PR_DESC=$(cat .claude/codename/PR_DESCRIPTION.md)
+            echo "pr_description<<EOF" >> $GITHUB_OUTPUT
+            echo "$PR_DESC" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "pr_description=## Feature Branch: $BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "This PR was created automatically for review." >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "**Next Steps:**" >> $GITHUB_OUTPUT
+            echo "1. Review the changes" >> $GITHUB_OUTPUT
+            echo "2. Approve if ready for upstream PR" >> $GITHUB_OUTPUT
+            echo "3. Use workflow_dispatch to create upstream PR after approval" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if PR already exists
+        id: check_pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = '${{ github.event.inputs.branch || github.ref_name }}';
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              base: 'main',
+              state: 'open'
+            });
+            
+            if (prs.length > 0) {
+              core.setOutput('pr_number', prs[0].number);
+              core.setOutput('exists', 'true');
+            } else {
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Create or update PR in fork
+        if: steps.check_pr.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = '${{ github.event.inputs.branch || github.ref_name }}';
+            const prDescription = `${{ steps.pr_desc.outputs.pr_description }}
+            
+            ---
+            
+            ## 🤖 Automated PR Creation
+            
+            This PR was automatically created from feature branch: \`${branch}\`
+            
+            **Review Checklist:**
+            - [x] Code reviewed by Claude
+            - [x] No .claude/ files included
+            - [ ] Manual review completed
+            - [ ] Ready for upstream PR
+            
+            **To create upstream PR after approval:**
+            Run the "Create Upstream PR" workflow manually from the Actions tab.
+            `;
+            
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Review] ${branch}`,
+              head: branch,
+              base: 'main',
+              body: prDescription,
+              draft: false
+            });
+            
+            core.setOutput('pr_number', pr.data.number);
+            core.setOutput('pr_url', pr.data.html_url);
+            
+            console.log(`✅ Created PR #${pr.data.number}: ${pr.data.html_url}`);
+
+      - name: Comment on existing PR
+        if: steps.check_pr.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = ${{ steps.check_pr.outputs.pr_number }};
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: '🔄 Branch updated. Claude review completed. PR ready for review.'
+            });
+
+  create-upstream-draft-pr:
+    needs: [validate-branch, claude-review]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && secrets.UPSTREAM_PAT != ''
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Verify branch is clean
+        run: |
+          git fetch origin
+          if git diff origin/main --name-only | grep -q "^\.claude/"; then
+            echo "❌ ERROR: .claude/ files still present!"
+            exit 1
+          fi
+
+      - name: Get PR description
+        id: pr_desc
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
+          
+          # Try to get PR description from .claude/codename/PR_DESCRIPTION.md
+          if [ -f ".claude/codename/PR_DESCRIPTION.md" ]; then
+            PR_DESC=$(cat .claude/codename/PR_DESCRIPTION.md)
+            echo "pr_description<<EOF" >> $GITHUB_OUTPUT
+            echo "$PR_DESC" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "pr_description=## Feature Branch: $BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "This PR was automatically created as a draft for review." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if upstream PR already exists
+        id: check_upstream_pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.UPSTREAM_PAT }}
+          script: |
+            const branch = '${{ github.event.inputs.branch || github.ref_name }}';
+            const forkOwner = context.repo.owner;
+            const upstreamOwner = 'Yeraze';
+            const upstreamRepo = 'meshmonitor';
+            
+            const { data: prs } = await github.rest.pulls.list({
+              owner: upstreamOwner,
+              repo: upstreamRepo,
+              head: `${forkOwner}:${branch}`,
+              base: 'main',
+              state: 'all' // Check both open and closed
+            });
+            
+            // Find open PR (draft or ready)
+            const openPR = prs.find(pr => pr.state === 'open');
+            
+            if (openPR) {
+              core.setOutput('pr_number', openPR.number);
+              core.setOutput('pr_url', openPR.html_url);
+              core.setOutput('is_draft', openPR.draft);
+              core.setOutput('exists', 'true');
+            } else {
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Create or update draft PR to upstream
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.UPSTREAM_PAT }}
+          script: |
+            const branch = '${{ github.event.inputs.branch || github.ref_name }}';
+            const upstreamOwner = 'Yeraze';
+            const upstreamRepo = 'meshmonitor';
+            const forkOwner = context.repo.owner;
+            
+            // Get PR description
+            const fs = require('fs');
+            let prDescription = '${{ steps.pr_desc.outputs.pr_description }}';
+            
+            // Format title from branch name
+            const title = branch
+              .replace('feat/', 'feat: ')
+              .replace(/-/g, ' ')
+              .split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+            
+            const prExists = '${{ steps.check_upstream_pr.outputs.exists }}' === 'true';
+            
+            if (prExists) {
+              // Update existing PR
+              const prNumber = parseInt('${{ steps.check_upstream_pr.outputs.pr_number }}');
+              const isDraft = '${{ steps.check_upstream_pr.outputs.is_draft }}' === 'true';
+              
+              await github.rest.pulls.update({
+                owner: upstreamOwner,
+                repo: upstreamRepo,
+                pull_number: prNumber,
+                body: prDescription,
+                title: title
+              });
+              
+              // Keep it as draft if it was draft, or convert to draft if it was ready
+              if (isDraft) {
+                console.log(`✅ Updated draft PR #${prNumber}`);
+              } else {
+                // Convert back to draft if it was ready (user might have made changes)
+                await github.rest.pulls.update({
+                  owner: upstreamOwner,
+                  repo: upstreamRepo,
+                  pull_number: prNumber,
+                  draft: true
+                });
+                console.log(`✅ Updated and converted PR #${prNumber} back to draft`);
+              }
+              
+              core.setOutput('pr_url', '${{ steps.check_upstream_pr.outputs.pr_url }}');
+              core.setOutput('pr_number', prNumber.toString());
+            } else {
+              // Create new draft PR
+              const pr = await github.rest.pulls.create({
+                owner: upstreamOwner,
+                repo: upstreamRepo,
+                title: title,
+                head: `${forkOwner}:${branch}`,
+                base: 'main',
+                body: prDescription,
+                draft: true  // Create as draft
+              });
+              
+              console.log(`✅ Created draft PR #${pr.number}: ${pr.html_url}`);
+              console.log(`📝 Review and edit the PR, then mark as ready when satisfied.`);
+              core.setOutput('pr_url', pr.html_url);
+              core.setOutput('pr_number', pr.number.toString());
+            }
+
+  convert-draft-to-ready:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'convert-to-ready'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Convert draft PR to ready
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.UPSTREAM_PAT }}
+          script: |
+            const prNumber = parseInt('${{ github.event.inputs.pr_number }}');
+            const upstreamOwner = 'Yeraze';
+            const upstreamRepo = 'meshmonitor';
+            
+            await github.rest.pulls.update({
+              owner: upstreamOwner,
+              repo: upstreamRepo,
+              pull_number: prNumber,
+              draft: false
+            });
+            
+            console.log(`✅ Converted PR #${prNumber} from draft to ready for review.`);
+
