@@ -96,19 +96,30 @@ jobs:
   create-review-pr:
     needs: [validate-branch, claude-review]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && secrets.UPSTREAM_PAT == ''
+    if: github.event_name == 'push'
     steps:
+      - name: Check if should run
+        id: should_run
+        run: |
+          if [ -n "${{ secrets.UPSTREAM_PAT }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout
+        if: steps.should_run.outputs.skip == 'false'
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get PR description
+        if: steps.should_run.outputs.skip == 'false'
         id: pr_desc
         run: |
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
-          
+
           # Try to get PR description from .claude/codename/PR_DESCRIPTION.md
           if [ -f ".claude/codename/PR_DESCRIPTION.md" ]; then
             PR_DESC=$(cat .claude/codename/PR_DESCRIPTION.md)
@@ -127,6 +138,7 @@ jobs:
           fi
 
       - name: Check if PR already exists
+        if: steps.should_run.outputs.skip == 'false'
         id: check_pr
         uses: actions/github-script@v7
         with:
@@ -149,7 +161,7 @@ jobs:
             }
 
       - name: Create or update PR in fork
-        if: steps.check_pr.outputs.exists == 'false'
+        if: steps.should_run.outputs.skip == 'false' && steps.check_pr.outputs.exists == 'false'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -189,7 +201,7 @@ jobs:
             console.log(`✅ Created PR #${pr.data.number}: ${pr.data.html_url}`);
 
       - name: Comment on existing PR
-        if: steps.check_pr.outputs.exists == 'true'
+        if: steps.should_run.outputs.skip == 'false' && steps.check_pr.outputs.exists == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -205,15 +217,26 @@ jobs:
   create-upstream-draft-pr:
     needs: [validate-branch, claude-review]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && secrets.UPSTREAM_PAT != ''
+    if: github.event_name == 'push'
     steps:
+      - name: Check if should run
+        id: should_run
+        run: |
+          if [ -z "${{ secrets.UPSTREAM_PAT }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout feature branch
+        if: steps.should_run.outputs.skip == 'false'
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Verify branch is clean
+        if: steps.should_run.outputs.skip == 'false'
         run: |
           git fetch origin
           if git diff origin/main --name-only | grep -q "^\.claude/"; then
@@ -222,10 +245,11 @@ jobs:
           fi
 
       - name: Get PR description
+        if: steps.should_run.outputs.skip == 'false'
         id: pr_desc
         run: |
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
-          
+
           # Try to get PR description from .claude/codename/PR_DESCRIPTION.md
           if [ -f ".claude/codename/PR_DESCRIPTION.md" ]; then
             PR_DESC=$(cat .claude/codename/PR_DESCRIPTION.md)
@@ -239,6 +263,7 @@ jobs:
           fi
 
       - name: Check if upstream PR already exists
+        if: steps.should_run.outputs.skip == 'false'
         id: check_upstream_pr
         uses: actions/github-script@v7
         with:
@@ -270,6 +295,7 @@ jobs:
             }
 
       - name: Create or update draft PR to upstream
+        if: steps.should_run.outputs.skip == 'false'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.UPSTREAM_PAT }}
