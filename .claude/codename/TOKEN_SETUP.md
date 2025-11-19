@@ -6,16 +6,25 @@
 
 **What it is:** OAuth token for Claude Code GitHub app to review your code
 
+**Do you need it if GitHub app is installed?**
+
+**Yes, you still need the OAuth token.** The GitHub app installation handles permissions, but the OAuth token is required for Claude's API authentication. They work together:
+- **GitHub App**: Handles repository permissions and access
+- **OAuth Token**: Authenticates with Claude's API to actually run reviews
+
 **Where to get it:**
 
-The OAuth token is generated when you install/connect the Claude Code GitHub app to your repository.
+The OAuth token is separate from the GitHub app installation. You need to generate it from Claude's side.
 
-**Method 1: Via Claude Code Website (if available)**
+**Method 1: Via Claude Code Website (Primary Method)**
 1. Go to: https://claude.ai/code
-2. Sign in with your Claude subscription
-3. Look for "GitHub Integration" or "Settings" section
-4. If there's a "Generate OAuth Token" option, use that
-5. Copy the token
+2. Sign in with your Claude subscription (must have Claude Code access)
+3. Look for one of these:
+   - Settings icon/gear → "GitHub" or "Integrations"
+   - "API" or "Tokens" section
+   - "Generate Token" or "OAuth Token" option
+4. Generate the OAuth token
+5. Copy the token immediately (you may not see it again)
 
 **Method 2: Via GitHub App Installation (Recommended)**
 1. Go to: https://github.com/apps/claude-code (or search for "Claude Code" in GitHub Apps)
@@ -35,11 +44,16 @@ The OAuth token is generated when you install/connect the Claude Code GitHub app
 2. Check the README for OAuth token setup instructions
 3. Look for "Getting Started" or "Setup" section
 
-**If you've already installed the Claude Code app:**
-- The OAuth token might be managed automatically by GitHub
-- Try running a workflow - if it fails with auth error, you'll need to generate the token
-- Check your fork's Settings → Secrets → Actions to see if any Claude-related secrets exist
-- You may need to visit https://claude.ai/code and look for a "GitHub" or "API" section to generate a token
+**Testing if you need the token:**
+1. Push a feature branch without the token set
+2. Check the workflow run - if it fails with authentication error, you need the token
+3. The error message will indicate if `CLAUDE_CODE_OAUTH_TOKEN` is missing
+
+**If you can't find the token generation option:**
+- The feature might be in beta/limited access
+- Check if you have Claude Code subscription access
+- Try contacting Anthropic support or check their documentation
+- Alternative: The token might be auto-generated during GitHub app installation - check your fork's Settings → Secrets → Actions for any auto-created secrets
 
 **Important:** The OAuth token is different from:
 - GitHub Personal Access Token (PAT)
